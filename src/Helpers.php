@@ -607,14 +607,12 @@ class Helpers
 
         if ($width == null || $height == null) {
             list($data, $headers) = Helpers::getFileContent($filename, $context);
-
             if (substr($data, 0, 2) === "BM") {
                 $meta = unpack('vtype/Vfilesize/Vreserved/Voffset/Vheadersize/Vwidth/Vheight', $data);
                 $width = (int)$meta['width'];
                 $height = (int)$meta['height'];
                 $type = "bmp";
-            }
-            else {
+            } else {
                 if (strpos($data, "<svg") !== false) {
                     $doc = new \Svg\Document();
                     $doc->loadFile($filename);
@@ -624,6 +622,18 @@ class Helpers
                 }
             }
 
+        }
+
+        if ($width == null || $height == null && $type == null) {
+            try {
+                list($data, $headers) = Helpers::getFileContent($filename, $context);
+                $meta = unpack('vtype/Vfilesize/Vreserved/Voffset/Vheadersize/Vwidth/Vheight', gzdecode($data));
+                $width = (int)$meta['width'];
+                $height = (int)$meta['height'];
+                $type = "gzip";
+            } catch (Exception $e) {
+                die ($e->getMessage());
+            }
         }
 
         return $cache[$filename] = array($width, $height, $type);
