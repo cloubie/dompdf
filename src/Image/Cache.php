@@ -10,6 +10,7 @@
 namespace Dompdf\Image;
 
 use Dompdf\Dompdf;
+use Dompdf\Exception;
 use Dompdf\Helpers;
 use Dompdf\Exception\ImageException;
 
@@ -81,7 +82,6 @@ class Cache
                 if ($enable_remote && $remote || $data_uri) {
                     // Download remote files to a temporary directory
                     $full_url = Helpers::build_url($protocol, $host, $base_path, $url);
-
                     // From cache
                     if (isset(self::$_cache[$full_url])) {
                         $resolved_url = self::$_cache[$full_url];
@@ -89,6 +89,7 @@ class Cache
                     else {
                         $tmp_dir = $dompdf->getOptions()->getTempDir();
                         $resolved_url = tempnam($tmp_dir, "ca_dompdf_img_");
+                        chmod($resolved_url, 0777);
                         $image = "";
 
                         if ($data_uri) {
@@ -110,7 +111,13 @@ class Cache
                             //- a remote url does not need to have a file extension at all
                             //- local cached file does not have a matching file extension
                             //Therefore get image type from the content
-                            file_put_contents($resolved_url, $image);
+                            $is_gzip = 0 === mb_strpos($image, "\x1f" . "\x8b" . "\x08", 0, "US-ASCII");
+
+                            if ($is_gzip) {
+                                file_put_contents($resolved_url, gzdecode($image));
+                            } else {
+                                file_put_contents($resolved_url, $image);
+                            }
                         }
                     }
                 } // Not remote, local image
@@ -124,17 +131,16 @@ class Cache
                 throw new ImageException("Image not readable or empty", E_WARNING);
             } // Check is the file is an image
             else {
-                list($width, $height, $type) = Helpers::dompdf_getimagesize($resolved_url, $dompdf->getHttpContext());
+                list($width, $height, $type) = Helpers::dompdf_getimagesize($full_url, $dompdf->getHttpContext());
 
                 // Known image type
-                if ($width && $height && in_array($type, array("gif", "png", "jpeg", "bmp", "svg"))) {
+                if ($width && $height && in_array($type, array("gif", "png", "jpeg", "bmp", "svg", "gzip"))) {
                     //Don't put replacement image into cache - otherwise it will be deleted on cache cleanup.
                     //Only execute on successful caching of remote image.
                     if ($enable_remote && $remote || $data_uri) {
                         self::$_cache[$full_url] = $resolved_url;
                     }
-                } // Unknown image type
-                else {
+                } else {
                     throw new ImageException("Image type unknown", E_WARNING);
                 }
             }
@@ -179,8 +185,4 @@ class Cache
     {
         return $url === self::$broken_image;
     }
-}
-
-if (file_exists(realpath(__DIR__ . "/../../lib/res/broken_image.png"))) {
-    Cache::$broken_image = realpath(__DIR__ . "/../../lib/res/broken_image.png");
 }
