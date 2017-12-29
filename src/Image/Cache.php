@@ -89,7 +89,6 @@ class Cache
                     else {
                         $tmp_dir = $dompdf->getOptions()->getTempDir();
                         $resolved_url = tempnam($tmp_dir, "ca_dompdf_img_");
-                        chmod($resolved_url, 0777);
                         $image = "";
 
                         if ($data_uri) {
